@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Activity, ChevronUp, ChevronDown, Zap } from 'lucide-react';
 
-export function OrderFlowHUD({ currentCandle, chartMode }) {
+export const OrderFlowHUD = React.memo(function OrderFlowHUD({ currentCandle, chartMode }) {
   const [isExpanded, setIsExpanded] = useState(true);
 
   if (!currentCandle) return null;
@@ -80,4 +80,4 @@ export function OrderFlowHUD({ currentCandle, chartMode }) {
       </div>
     </div>
   );
-}
+});

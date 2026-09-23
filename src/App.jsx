@@ -55,19 +55,28 @@ export default function App() {
   const liqWsServiceRef = useRef(null);
   const aggregatorRef = useRef(null);
 
+  const lastStateUpdateRef = useRef(0);
+
   // Initialize Aggregator
   useEffect(() => {
     aggregatorRef.current = new TickAggregator({
       interval: timeframe,
       tickSize: settings.tickSize,
       onCandleUpdate: (candle) => {
+        // 1. Direct instantaneous canvas update (0ms delay)
         if (chartRef.current && typeof chartRef.current.updateData === 'function') {
           chartRef.current.updateData(candle);
         }
-        setLatestPrice(candle.close);
-        const delta = candle.footprint?.delta || 0;
-        setCandleDelta(delta);
-        setCurrentCandle({ ...candle });
+
+        // 2. Throttle React state re-renders to 50ms to keep main thread blazing fast
+        const now = performance.now();
+        if (now - lastStateUpdateRef.current > 50) {
+          lastStateUpdateRef.current = now;
+          setLatestPrice(candle.close);
+          const delta = candle.footprint?.delta || 0;
+          setCandleDelta(delta);
+          setCurrentCandle(candle);
+        }
       },
       onNewCandle: (newCandle) => {
         if (chartRef.current && typeof chartRef.current.applyNewData === 'function' && aggregatorRef.current) {
@@ -75,7 +84,7 @@ export default function App() {
         }
         setLatestPrice(newCandle.close);
         setCandleDelta(0);
-        setCurrentCandle({ ...newCandle });
+        setCurrentCandle(newCandle);
       },
     });
 

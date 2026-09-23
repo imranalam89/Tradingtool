@@ -63,83 +63,59 @@ export class TickAggregator {
   }
 
   /**
-   * Push incoming trade from Binance WebSocket
+   * Push incoming trade from Binance WebSocket (Ultra-low latency instant tick processing)
    * Trade schema: { p: price, q: quantity, T: timestamp, m: isBuyerMaker }
    */
   pushTrade(trade) {
-    this.pendingTrades.push(trade);
-    if (!this.rafId) {
-      this.rafId = requestAnimationFrame(() => this.flushPendingTrades());
-    }
-  }
+    const price = parseFloat(trade.p);
+    const qty = parseFloat(trade.q);
+    const tradeTime = trade.T;
+    const isBuyerMaker = trade.m; // true = aggressive sell (bid), false = aggressive buy (ask)
 
-  /**
-   * Batch process all trades accumulated during frame interval
-   */
-  flushPendingTrades() {
-    this.rafId = null;
-    if (this.pendingTrades.length === 0) return;
+    const candleOpenTime = Math.floor(tradeTime / this.intervalMs) * this.intervalMs;
+    let currentCandle = this.candles.length > 0 ? this.candles[this.candles.length - 1] : null;
 
-    const trades = this.pendingTrades;
-    this.pendingTrades = [];
-
-    let hasNewCandle = false;
-    let latestCandle = null;
-
-    for (let i = 0; i < trades.length; i++) {
-      const t = trades[i];
-      const price = parseFloat(t.p);
-      const qty = parseFloat(t.q);
-      const tradeTime = t.T;
-      const isBuyerMaker = t.m; // true = aggressive sell (bid), false = aggressive buy (ask)
-
-      const candleOpenTime = Math.floor(tradeTime / this.intervalMs) * this.intervalMs;
-      let currentCandle = this.candles.length > 0 ? this.candles[this.candles.length - 1] : null;
-
-      if (!currentCandle || candleOpenTime > currentCandle.timestamp) {
-        // Create new candle
-        const newCandle = {
-          timestamp: candleOpenTime,
-          open: price,
-          high: price,
-          low: price,
-          close: price,
-          volume: 0,
-          turnover: 0,
-          footprint: {
-            delta: 0,
-            totalBidVol: 0,
-            totalAskVol: 0,
-            clusters: {},
-            pocPrice: price,
-            maxPriceVol: 0,
-          }
-        };
-
-        this.candles.push(newCandle);
-        if (this.candles.length > this.maxCandles) {
-          this.candles.shift();
+    let isNew = false;
+    if (!currentCandle || candleOpenTime > currentCandle.timestamp) {
+      currentCandle = {
+        timestamp: candleOpenTime,
+        open: price,
+        high: price,
+        low: price,
+        close: price,
+        volume: 0,
+        turnover: 0,
+        footprint: {
+          delta: 0,
+          totalBidVol: 0,
+          totalAskVol: 0,
+          clusters: {},
+          pocPrice: price,
+          maxPriceVol: 0,
         }
-        currentCandle = newCandle;
-        hasNewCandle = true;
+      };
+      this.candles.push(currentCandle);
+      if (this.candles.length > this.maxCandles) {
+        this.candles.shift();
       }
-
-      // Update OHLCV
-      currentCandle.high = Math.max(currentCandle.high, price);
-      currentCandle.low = Math.min(currentCandle.low, price);
-      currentCandle.close = price;
-      currentCandle.volume += qty;
-      currentCandle.turnover += price * qty;
-
-      // Update Footprint Clusters
-      this.accumulateTradeToFootprint(currentCandle, price, qty, isBuyerMaker);
-      latestCandle = currentCandle;
+      isNew = true;
     }
 
-    if (hasNewCandle) {
-      this.onNewCandle(latestCandle);
-    } else if (latestCandle) {
-      this.onCandleUpdate(latestCandle);
+    // Update OHLCV immediately
+    currentCandle.high = Math.max(currentCandle.high, price);
+    currentCandle.low = Math.min(currentCandle.low, price);
+    currentCandle.close = price;
+    currentCandle.volume += qty;
+    currentCandle.turnover += price * qty;
+
+    // Accumulate to Footprint Cluster
+    this.accumulateTradeToFootprint(currentCandle, price, qty, isBuyerMaker);
+
+    // Instant callback to chart
+    if (isNew) {
+      this.onNewCandle(currentCandle);
+    } else {
+      this.onCandleUpdate(currentCandle);
     }
   }
 

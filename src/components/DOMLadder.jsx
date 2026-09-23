@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { Layers, ShieldAlert, ArrowUpDown } from 'lucide-react';
 
-export function DOMLadder({ depthData, latestPrice, symbol, onClose }) {
+export const DOMLadder = React.memo(function DOMLadder({ depthData, latestPrice, symbol, onClose }) {
   const ladderContainerRef = useRef(null);
 
   const bids = depthData?.bids || [];
@@ -160,4 +160,4 @@ export function DOMLadder({ depthData, latestPrice, symbol, onClose }) {
       </div>
     </div>
   );
-}
+});
