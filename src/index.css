@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background-color: #131722;
+  color: #d1d4dc;
+  user-select: none;
+  overflow: hidden;
+}
+
+/* Custom TradingView-styled Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #131722;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2e39;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #363a45;
+}
+
+/* Tooltip & badge transitions */
+.tv-btn {
+  @apply px-2.5 py-1 text-xs font-medium rounded transition-colors duration-150 flex items-center justify-center gap-1.5;
+}
+
+.tv-btn-default {
+  @apply text-[#d1d4dc] hover:bg-[#2a2e39] active:bg-[#363a45];
+}
+
+.tv-btn-active {
+  @apply bg-[#2962ff] text-white hover:bg-[#1e53e5];
+}
+
+.tv-divider {
+  @apply w-[1px] h-5 bg-[#2a2e39] mx-1;
+}
