@@ -6,8 +6,65 @@
 import { registerIndicator } from 'klinecharts';
 
 export const FOOTPRINT_INDICATOR_NAME = 'VOLUME_FOOTPRINT';
+export const DELTA_INDICATOR_NAME = 'DELTA_BAR';
 
 let isRegistered = false;
+let isDeltaRegistered = false;
+
+export function registerDeltaIndicator() {
+  if (isDeltaRegistered) return;
+
+  registerIndicator({
+    name: DELTA_INDICATOR_NAME,
+    shortName: 'Delta Bar',
+    minValue: null,
+    maxValue: null,
+    calc: (dataList) => {
+      let cvd = 0;
+      return dataList.map((kLine) => {
+        let delta = 0;
+        if (kLine.footprint && typeof kLine.footprint.delta === 'number') {
+          delta = kLine.footprint.delta;
+        } else if (typeof kLine.delta === 'number') {
+          delta = kLine.delta;
+        } else {
+          const isUp = kLine.close >= kLine.open;
+          delta = isUp ? (kLine.volume * 0.25) : -(kLine.volume * 0.25);
+        }
+        cvd += delta;
+        return {
+          delta: Number(delta.toFixed(2)),
+          cvd: Number(cvd.toFixed(2)),
+        };
+      });
+    },
+    figures: [
+      {
+        key: 'delta',
+        title: 'Delta: ',
+        type: 'bar',
+        baseValue: 0,
+        styles: (data) => {
+          const val = data.current?.delta ?? 0;
+          return {
+            color: val >= 0 ? '#089981' : '#f23645',
+          };
+        },
+      },
+      {
+        key: 'cvd',
+        title: 'CVD: ',
+        type: 'line',
+        styles: () => ({
+          color: '#f0b90b',
+          size: 1.5,
+        }),
+      },
+    ],
+  });
+
+  isDeltaRegistered = true;
+}
 
 export function registerFootprintIndicator() {
   if (isRegistered) return;

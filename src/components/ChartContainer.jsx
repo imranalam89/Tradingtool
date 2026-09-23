@@ -3,7 +3,9 @@ import { init, dispose } from 'klinecharts';
 import { TV_DARK_THEME } from '../chart/klineConfig';
 import { 
   registerFootprintIndicator, 
-  FOOTPRINT_INDICATOR_NAME 
+  FOOTPRINT_INDICATOR_NAME,
+  registerDeltaIndicator,
+  DELTA_INDICATOR_NAME
 } from '../chart/footprintIndicator';
 import { activateDrawingTool } from '../chart/drawingTools';
 
@@ -12,16 +14,21 @@ export function ChartContainer({
   activeTool,
   onChartReady,
   optionsData,
+  subIndicator = 'DELTA', // 'DELTA' or 'VOL'
+  onToggleSubIndicator,
 }) {
   const containerRef = useRef(null);
   const chartInstance = useRef(null);
   const isFootprintActiveRef = useRef(false);
+  const subPaneIdRef = useRef(null);
+  const currentSubIndicatorRef = useRef(subIndicator);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Register custom Volume Footprint indicator
+    // Register custom Volume Footprint & Delta Bar indicators
     registerFootprintIndicator();
+    registerDeltaIndicator();
 
     // Initialize KLineCharts with dark theme
     const chart = init(containerRef.current, {
@@ -29,11 +36,17 @@ export function ChartContainer({
     });
     chartInstance.current = chart;
 
-    // Create default Volume sub-pane
+    // Create Delta Bar sub-pane by default
     try {
-      chart.createIndicator('VOL', false, { height: 80, dragEnabled: true });
+      const paneId = chart.createIndicator(
+        subIndicator === 'DELTA' ? DELTA_INDICATOR_NAME : 'VOL', 
+        false, 
+        { height: 90, dragEnabled: true }
+      );
+      subPaneIdRef.current = paneId;
+      currentSubIndicatorRef.current = subIndicator;
     } catch (e) {
-      console.warn('VOL indicator init error:', e);
+      console.warn('Sub-pane indicator init error:', e);
     }
 
     // Set initial bar space wide enough for cluster visualization
@@ -123,6 +136,29 @@ export function ChartContainer({
       } catch (e) {}
     }
   }, [chartMode]);
+
+  // Handle sub-pane indicator change: Delta Bar vs Volume
+  useEffect(() => {
+    const chart = chartInstance.current;
+    if (!chart) return;
+
+    if (currentSubIndicatorRef.current !== subIndicator) {
+      try {
+        if (subPaneIdRef.current) {
+          chart.removeIndicator(subPaneIdRef.current);
+        }
+        const newPaneId = chart.createIndicator(
+          subIndicator === 'DELTA' ? DELTA_INDICATOR_NAME : 'VOL',
+          false,
+          { height: 90, dragEnabled: true }
+        );
+        subPaneIdRef.current = newPaneId;
+        currentSubIndicatorRef.current = subIndicator;
+      } catch (err) {
+        console.warn('Error switching sub indicator:', err);
+      }
+    }
+  }, [subIndicator]);
 
   // Handle active drawing tool change
   useEffect(() => {

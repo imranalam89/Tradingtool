@@ -45,6 +45,8 @@ export function Navbar({
   isFlowOpen,
   onToggleFlow,
   optionsData,
+  subIndicator = 'DELTA',
+  onToggleSubIndicator,
 }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
@@ -233,6 +235,21 @@ export function Navbar({
         >
           <Flame className="h-3.5 w-3.5 text-rose-400" />
           <span className="hidden md:inline">Flow / Liq</span>
+        </button>
+
+        <div className="tv-divider hidden sm:block" />
+
+        {/* Sub-pane Indicator: Delta Bar vs Volume */}
+        <button
+          onClick={onToggleSubIndicator}
+          className={`flex items-center gap-1 px-2.5 py-1 text-xs font-mono font-semibold rounded border transition-colors ${
+            subIndicator === 'DELTA'
+              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
+              : 'bg-[#1e222d] text-[#787b86] border-[#2a2e39] hover:text-white'
+          }`}
+          title="Click to toggle between Delta Bars and Standard Volume"
+        >
+          <span>{subIndicator === 'DELTA' ? 'Δ DELTA BAR' : 'VOLUME'}</span>
         </button>
       </div>
 

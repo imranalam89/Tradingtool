@@ -21,9 +21,10 @@ export default function App() {
   const [activeTool, setActiveTool] = useState('crosshair');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // New panels toggles (ATAS / Bookmap style)
+  // Panels toggles (ATAS / Bookmap style)
   const [isDOMOpen, setIsDOMOpen] = useState(true);
   const [isFlowOpen, setIsFlowOpen] = useState(false);
+  const [subIndicator, setSubIndicator] = useState('DELTA'); // 'DELTA' or 'VOL'
 
   const [settings, setSettings] = useState({
     tickSize: 0.50, // Default for PAXG/Gold
@@ -250,6 +251,8 @@ export default function App() {
         isFlowOpen={isFlowOpen}
         onToggleFlow={() => setIsFlowOpen(!isFlowOpen)}
         optionsData={optionsData}
+        subIndicator={subIndicator}
+        onToggleSubIndicator={() => setSubIndicator(prev => prev === 'DELTA' ? 'VOL' : 'DELTA')}
       />
 
       {/* Main Workspace */}
@@ -268,6 +271,7 @@ export default function App() {
             activeTool={activeTool}
             onChartReady={handleChartReady}
             optionsData={optionsData}
+            subIndicator={subIndicator}
           />
 
           {/* Real-time Order Flow HUD Telemetry */}
