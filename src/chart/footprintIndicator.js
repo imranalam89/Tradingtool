@@ -210,9 +210,10 @@ export function registerDeltaIndicator() {
         type: 'bar',
         baseValue: 0,
         styles: (data) => {
-          const val = data.current?.delta ?? 0;
+          const current = data?.current;
+          const val = current?.indicatorData?.delta ?? current?.delta ?? data?.delta ?? 0;
           return {
-            color: val >= 0 ? '#22ab94' : '#e53935',
+            color: val < 0 ? '#e53935' : '#22ab94',
           };
         },
       },
