@@ -47,6 +47,8 @@ export function Navbar({
   optionsData,
   subIndicator = 'DELTA',
   onToggleSubIndicator,
+  theme = 'dark',
+  onToggleTheme,
 }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
@@ -196,6 +198,19 @@ export function Navbar({
             <Layers className="h-3.5 w-3.5" />
             <span className="font-semibold">Footprint</span>
           </button>
+
+          <button
+            onClick={() => onToggleChartMode('HEATMAP')}
+            className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded transition-all ${
+              chartMode === 'HEATMAP'
+                ? 'bg-amber-500 text-black shadow-md font-semibold'
+                : 'text-[#787b86] hover:text-[#d1d4dc]'
+            }`}
+            title="Bookmap Liquidity Heatmap view"
+          >
+            <Flame className="h-3.5 w-3.5" />
+            <span className="font-semibold">Heatmap</span>
+          </button>
         </div>
 
         {/* Footprint Settings */}
@@ -299,6 +314,15 @@ export function Navbar({
             <span className="text-[#f23645]">OFFLINE</span>
           )}
         </div>
+
+        {/* Theme Toggle */}
+        <button
+          onClick={onToggleTheme}
+          className="rounded px-2 py-1 text-[11px] font-medium bg-[#1e222d] text-[#d1d4dc] border border-[#2a2e39] hover:bg-[#2a2e39] transition-colors"
+          title={theme === 'light' ? "Switch to Dark Mode" : "Switch to Light Mode"}
+        >
+          {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
+        </button>
 
         {/* Reset Zoom */}
         <button

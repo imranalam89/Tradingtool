@@ -25,6 +25,7 @@ export default function App() {
   const [isDOMOpen, setIsDOMOpen] = useState(true);
   const [isFlowOpen, setIsFlowOpen] = useState(false);
   const [subIndicator, setSubIndicator] = useState('DELTA'); // 'DELTA' or 'VOL'
+  const [theme, setTheme] = useState('dark'); // 'dark' or 'light'
 
   const [settings, setSettings] = useState({
     tickSize: 0.50, // Default for PAXG/Gold
@@ -253,6 +254,8 @@ export default function App() {
         optionsData={optionsData}
         subIndicator={subIndicator}
         onToggleSubIndicator={() => setSubIndicator(prev => prev === 'DELTA' ? 'VOL' : 'DELTA')}
+        theme={theme}
+        onToggleTheme={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
       />
 
       {/* Main Workspace */}
@@ -272,6 +275,8 @@ export default function App() {
             onChartReady={handleChartReady}
             optionsData={optionsData}
             subIndicator={subIndicator}
+            depthData={depthData}
+            theme={theme}
           />
 
           {/* Real-time Order Flow HUD Telemetry */}

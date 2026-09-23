@@ -1,11 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import { init, dispose } from 'klinecharts';
-import { TV_DARK_THEME } from '../chart/klineConfig';
+import { TV_DARK_THEME, TV_LIGHT_THEME } from '../chart/klineConfig';
 import { 
   registerFootprintIndicator, 
   FOOTPRINT_INDICATOR_NAME,
   registerDeltaIndicator,
-  DELTA_INDICATOR_NAME
+  DELTA_INDICATOR_NAME,
+  registerHeatmapIndicator,
+  HEATMAP_INDICATOR_NAME,
+  setHeatmapDepthData
 } from '../chart/footprintIndicator';
 import { activateDrawingTool } from '../chart/drawingTools';
 
@@ -15,24 +18,30 @@ export function ChartContainer({
   onChartReady,
   optionsData,
   subIndicator = 'DELTA', // 'DELTA' or 'VOL'
-  onToggleSubIndicator,
+  depthData,
+  theme = 'dark',
 }) {
   const containerRef = useRef(null);
   const chartInstance = useRef(null);
   const isFootprintActiveRef = useRef(false);
+  const isHeatmapActiveRef = useRef(false);
   const subPaneIdRef = useRef(null);
   const currentSubIndicatorRef = useRef(subIndicator);
+
+  // Sync depthData with heatmap drawer
+  useEffect(() => {
+    setHeatmapDepthData(depthData);
+  }, [depthData]);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Register custom Volume Footprint & Delta Bar indicators
     registerFootprintIndicator();
     registerDeltaIndicator();
+    registerHeatmapIndicator();
 
-    // Initialize KLineCharts with dark theme
     const chart = init(containerRef.current, {
-      styles: TV_DARK_THEME,
+      styles: theme === 'light' ? TV_LIGHT_THEME : TV_DARK_THEME,
     });
     chartInstance.current = chart;
 
@@ -49,12 +58,10 @@ export function ChartContainer({
       console.warn('Sub-pane indicator init error:', e);
     }
 
-    // Set initial bar space wide enough for cluster visualization
     try {
       chart.setBarSpace(chartMode === 'FOOTPRINT' ? 55 : 12);
     } catch (e) {}
 
-    // Responsive resize observer
     const resizeObserver = new ResizeObserver(() => {
       if (chartInstance.current) {
         chartInstance.current.resize();
@@ -75,22 +82,38 @@ export function ChartContainer({
     };
   }, []);
 
-  // Handle Chart Mode Switch: Standard Candlesticks vs Volume Footprint
+  // Handle Theme Change
+  useEffect(() => {
+    const chart = chartInstance.current;
+    if (!chart) return;
+    chart.setStyles(theme === 'light' ? TV_LIGHT_THEME : TV_DARK_THEME);
+  }, [theme]);
+
+  // Handle Chart Mode: CANDLE vs FOOTPRINT vs HEATMAP
   useEffect(() => {
     const chart = chartInstance.current;
     if (!chart) return;
 
     if (chartMode === 'FOOTPRINT') {
+      // Deactivate heatmap if active
+      if (isHeatmapActiveRef.current) {
+        try {
+          chart.removeIndicator('candle_pane', HEATMAP_INDICATOR_NAME);
+          isHeatmapActiveRef.current = false;
+        } catch (e) {}
+      }
+
+      // Transparent candle outline to let footprint bricks shine
       chart.setStyles({
         candle: {
           type: 'candle_solid',
           bar: {
-            upColor: 'rgba(8, 153, 129, 0.1)',
-            downColor: 'rgba(242, 54, 69, 0.1)',
-            upBorderColor: 'rgba(8, 153, 129, 0.35)',
-            downBorderColor: 'rgba(242, 54, 69, 0.35)',
-            upWickColor: 'rgba(8, 153, 129, 0.35)',
-            downWickColor: 'rgba(242, 54, 69, 0.35)',
+            upColor: 'rgba(34, 171, 148, 0.08)',
+            downColor: 'rgba(242, 54, 69, 0.08)',
+            upBorderColor: 'rgba(34, 171, 148, 0.3)',
+            downBorderColor: 'rgba(242, 54, 69, 0.3)',
+            upWickColor: 'rgba(34, 171, 148, 0.3)',
+            downWickColor: 'rgba(242, 54, 69, 0.3)',
           }
         }
       });
@@ -107,32 +130,76 @@ export function ChartContainer({
       try {
         chart.setBarSpace(60);
       } catch (e) {}
-    } else {
+
+    } else if (chartMode === 'HEATMAP') {
+      // Deactivate footprint if active
+      if (isFootprintActiveRef.current) {
+        try {
+          chart.removeIndicator('candle_pane', FOOTPRINT_INDICATOR_NAME);
+          isFootprintActiveRef.current = false;
+        } catch (e) {}
+      }
+
+      // Activate Liquidity Heatmap
+      if (!isHeatmapActiveRef.current) {
+        try {
+          chart.createIndicator(HEATMAP_INDICATOR_NAME, true, { id: 'candle_pane' });
+          isHeatmapActiveRef.current = true;
+        } catch (err) {
+          console.warn('Error creating heatmap indicator:', err);
+        }
+      }
+
+      // Normal candles on top of heatmap
       chart.setStyles({
         candle: {
           type: 'candle_solid',
           bar: {
-            upColor: '#089981',
+            upColor: '#22ab94',
             downColor: '#f23645',
-            upBorderColor: '#089981',
+            upBorderColor: '#22ab94',
             downBorderColor: '#f23645',
-            upWickColor: '#089981',
+            upWickColor: '#22ab94',
             downWickColor: '#f23645',
           }
         }
       });
 
+      try {
+        chart.setBarSpace(16);
+      } catch (e) {}
+
+    } else {
+      // CANDLE Mode
       if (isFootprintActiveRef.current) {
         try {
           chart.removeIndicator('candle_pane', FOOTPRINT_INDICATOR_NAME);
           isFootprintActiveRef.current = false;
-        } catch (err) {
-          console.warn('Error removing footprint indicator:', err);
-        }
+        } catch (e) {}
+      }
+      if (isHeatmapActiveRef.current) {
+        try {
+          chart.removeIndicator('candle_pane', HEATMAP_INDICATOR_NAME);
+          isHeatmapActiveRef.current = false;
+        } catch (e) {}
       }
 
+      chart.setStyles({
+        candle: {
+          type: 'candle_solid',
+          bar: {
+            upColor: '#22ab94',
+            downColor: '#f23645',
+            upBorderColor: '#22ab94',
+            downBorderColor: '#f23645',
+            upWickColor: '#22ab94',
+            downWickColor: '#f23645',
+          }
+        }
+      });
+
       try {
-        chart.setBarSpace(10);
+        chart.setBarSpace(12);
       } catch (e) {}
     }
   }, [chartMode]);
@@ -167,12 +234,14 @@ export function ChartContainer({
     activateDrawingTool(chart, activeTool);
   }, [activeTool]);
 
+  const bgColor = theme === 'light' ? '#ffffff' : '#131722';
+
   return (
-    <div className="relative h-full w-full bg-[#131722] overflow-hidden">
+    <div className="relative h-full w-full overflow-hidden" style={{ background: bgColor }}>
       <div 
         ref={containerRef} 
         className="h-full w-full"
-        style={{ background: '#131722' }}
+        style={{ background: bgColor }}
       />
 
       {/* Floating Options GEX Walls Badges */}
