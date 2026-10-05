@@ -155,17 +155,17 @@ export function ChartContainer({
         }
       }
 
-      // Set built-in candle bars transparent so our composite Heatmap indicator's draw function renders cleanly
+      // Solid Japanese candles in foreground with Heatmap bands rendered behind
       chart.setStyles({
         candle: {
           type: 'candle_solid',
           bar: {
-            upColor: 'transparent',
-            downColor: 'transparent',
-            upBorderColor: 'transparent',
-            downBorderColor: 'transparent',
-            upWickColor: 'transparent',
-            downWickColor: 'transparent',
+            upColor: '#22ab94',
+            downColor: '#f23645',
+            upBorderColor: '#22ab94',
+            downBorderColor: '#f23645',
+            upWickColor: '#22ab94',
+            downWickColor: '#f23645',
           }
         }
       });

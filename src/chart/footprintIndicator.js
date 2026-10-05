@@ -225,8 +225,7 @@ export function registerDeltaIndicator() {
 
 /**
  * 3. Bookmap-Style Liquidity Heatmap Overlay Indicator
- * Renders resting Ask and Bid limit orders as thermal heat bands across all visible price levels
- * with Japanese Candlesticks floating in the foreground
+ * Renders resting Ask and Bid limit orders as thermal heat bands BEHIND the candlesticks
  */
 export function registerHeatmapIndicator() {
   if (isHeatmapRegistered) return;
@@ -242,225 +241,221 @@ export function registerHeatmapIndicator() {
     })),
     figures: [],
     draw: (params) => {
-      const { ctx, bounding, xAxis, yAxis, chart } = params;
-      const dataList = params.kLineDataList || (chart && chart.getDataList && chart.getDataList()) || [];
-      if (!dataList || dataList.length === 0) return false;
+      try {
+        const { ctx, bounding, xAxis, yAxis, chart } = params;
+        const dataList = params.kLineDataList || (chart && chart.getDataList && chart.getDataList()) || [];
+        if (!dataList || dataList.length === 0) return false;
 
-      const visibleRange = params.visibleRange || (chart && chart.getVisibleRange && chart.getVisibleRange()) || { from: 0, to: dataList.length };
-      const fromIndex = Math.max(0, visibleRange.from);
-      const toIndex = Math.min(dataList.length, visibleRange.to);
+        const visibleRange = params.visibleRange || (chart && chart.getVisibleRange && chart.getVisibleRange()) || { from: 0, to: dataList.length };
+        const fromIndex = Math.max(0, Math.floor(visibleRange.from || 0));
+        const toIndex = Math.min(dataList.length, Math.ceil(visibleRange.to || dataList.length));
 
-      // 1. Calculate visible price range
-      let minPrice = Infinity;
-      let maxPrice = -Infinity;
-      for (let i = fromIndex; i < toIndex; i++) {
-        const k = dataList[i];
-        if (!k) continue;
-        if (k.low < minPrice) minPrice = k.low;
-        if (k.high > maxPrice) maxPrice = k.high;
-      }
+        // 1. Calculate visible price range
+        let minPrice = Infinity;
+        let maxPrice = -Infinity;
+        for (let i = fromIndex; i < toIndex; i++) {
+          const k = dataList[i];
+          if (!k) continue;
+          if (typeof k.low === 'number' && k.low < minPrice) minPrice = k.low;
+          if (typeof k.high === 'number' && k.high > maxPrice) maxPrice = k.high;
+        }
 
-      if (!isFinite(minPrice) || !isFinite(maxPrice)) {
-        const last = dataList[dataList.length - 1];
-        if (!last) return false;
-        minPrice = last.close * 0.99;
-        maxPrice = last.close * 1.01;
-      }
+        if (!isFinite(minPrice) || !isFinite(maxPrice) || minPrice >= maxPrice) {
+          const last = dataList[dataList.length - 1];
+          if (!last) return false;
+          minPrice = (last.low || last.close) * 0.995;
+          maxPrice = (last.high || last.close) * 1.005;
+        }
 
-      const lastCandle = dataList[dataList.length - 1];
-      const currentPrice = lastCandle ? lastCandle.close : ((minPrice + maxPrice) / 2);
-      const priceSpan = Math.max(0.5, maxPrice - minPrice);
-      const renderMin = minPrice - priceSpan * 0.25;
-      const renderMax = maxPrice + priceSpan * 0.25;
+        const lastCandle = dataList[dataList.length - 1];
+        const currentPrice = (lastCandle && typeof lastCandle.close === 'number') 
+          ? lastCandle.close 
+          : ((minPrice + maxPrice) / 2);
+        const priceSpan = Math.max(1, maxPrice - minPrice);
+        const renderMin = minPrice - priceSpan * 0.20;
+        const renderMax = maxPrice + priceSpan * 0.20;
 
-      // 2. Determine price bucket step
-      const targetBands = Math.max(16, Math.min(48, Math.floor(bounding.height / 22)));
-      const rawStep = (renderMax - renderMin) / targetBands;
-      const step = getNiceHeatmapStep(rawStep);
+        // 2. Determine price bucket step
+        const paneHeight = (bounding && bounding.height) ? bounding.height : 450;
+        const targetBands = Math.max(18, Math.min(50, Math.floor(paneHeight / 18)));
+        const rawStep = Math.max(0.1, (renderMax - renderMin) / targetBands);
+        const step = Math.max(0.1, getNiceHeatmapStep(rawStep));
 
-      // Pixel height of each band
-      const yRef1 = yAxis.convertToPixel(currentPrice);
-      const yRef2 = yAxis.convertToPixel(currentPrice + step);
-      const bandH = Math.max(10, Math.min(44, Math.abs(yRef1 - yRef2) || 16));
+        // Pixel height of each band
+        const yRef1 = yAxis.convertToPixel(currentPrice);
+        const yRef2 = yAxis.convertToPixel(currentPrice + step);
+        let bandH = 16;
+        if (typeof yRef1 === 'number' && typeof yRef2 === 'number' && isFinite(yRef1) && isFinite(yRef2)) {
+          bandH = Math.max(8, Math.min(40, Math.abs(yRef1 - yRef2)));
+        }
 
-      // 3. Extract order book depth
-      const bids = currentDepthData?.bids || [];
-      const asks = currentDepthData?.asks || [];
-      const maxDepthQty = currentDepthData?.maxQty || 10;
+        // 3. Extract order book depth
+        const bids = currentDepthData?.bids || [];
+        const asks = currentDepthData?.asks || [];
+        const maxDepthQty = Math.max(currentDepthData?.maxQty || 10, 1);
 
-      ctx.save();
+        ctx.save();
 
-      // PART A: Render Heatmap Thermal Bands across all visible price levels
-      const startPrice = Math.floor(renderMin / step) * step;
-      const endPrice = Math.ceil(renderMax / step) * step;
+        // ----------------------------------------------------
+        // LAYER 1: Background Thermal Bands (Behind Candlesticks)
+        // ----------------------------------------------------
+        ctx.globalCompositeOperation = 'destination-over';
 
-      for (let p = startPrice; p <= endPrice; p += step) {
-        const y = yAxis.convertToPixel(p);
-        if (y < bounding.top - bandH || y > bounding.bottom + bandH) continue;
+        const startPrice = Math.floor(renderMin / step) * step;
+        const endPrice = Math.ceil(renderMax / step) * step;
+        const bLeft = (bounding && typeof bounding.left === 'number') ? bounding.left : 0;
+        const bWidth = (bounding && typeof bounding.width === 'number') ? bounding.width : 1000;
+        const bTop = (bounding && typeof bounding.top === 'number') ? bounding.top : 0;
+        const bBottom = (bounding && typeof bounding.bottom === 'number') ? bounding.bottom : 800;
 
-        const isAsk = p >= currentPrice;
+        const maxIterations = 80;
+        let iter = 0;
 
-        // Sum live orders in this price bucket
-        let liveQty = 0;
-        if (isAsk) {
-          for (let j = 0; j < asks.length; j++) {
-            if (Math.abs(asks[j].price - p) <= step * 0.6) {
-              liveQty += asks[j].qty;
+        const wallsToDraw = [];
+
+        for (let p = startPrice; p <= endPrice && iter < maxIterations; p += step, iter++) {
+          const y = yAxis.convertToPixel(p);
+          if (typeof y !== 'number' || !isFinite(y)) continue;
+          if (y < bTop - bandH || y > bBottom + bandH) continue;
+
+          const isAsk = p >= currentPrice;
+
+          // Sum live orders in this price bucket
+          let liveQty = 0;
+          if (isAsk) {
+            for (let j = 0; j < asks.length; j++) {
+              if (Math.abs(asks[j].price - p) <= step * 0.6) {
+                liveQty += asks[j].qty;
+              }
+            }
+          } else {
+            for (let j = 0; j < bids.length; j++) {
+              if (Math.abs(bids[j].price - p) <= step * 0.6) {
+                liveQty += bids[j].qty;
+              }
             }
           }
-        } else {
-          for (let j = 0; j < bids.length; j++) {
-            if (Math.abs(bids[j].price - p) <= step * 0.6) {
-              liveQty += bids[j].qty;
+
+          // Realistic baseline depth structure for levels beyond top-20
+          const distRatio = Math.abs(p - currentPrice) / priceSpan;
+          const isRound = Math.abs(p % (step * 5)) < (step * 0.1);
+          const wave = 0.25 + 0.15 * Math.sin(p * 11.3) + 0.12 * Math.cos(p * 4.7);
+          const syntheticQty = Math.max(0.1, (wave + (isRound ? 0.45 : 0) + Math.min(0.25, distRatio * 0.2))) * maxDepthQty;
+          const displayQty = liveQty > 0 ? liveQty : syntheticQty;
+          const isLive = liveQty > 0;
+
+          const intensity = Math.min(1, Math.max(0.1, displayQty / (maxDepthQty * 1.15)));
+          const isWall = isLive ? (intensity > 0.58 || liveQty > maxDepthQty * 0.5) : (isRound && intensity > 0.62);
+
+          const topY = y - bandH / 2;
+          const botY = y + bandH / 2;
+          if (!isFinite(topY) || !isFinite(botY) || topY === botY) continue;
+
+          const grad = ctx.createLinearGradient(0, topY, 0, botY);
+
+          if (isAsk) {
+            // ASK LIQUIDITY (Sell Orders Above Market) - Warm Amber / Fiery Orange / Gold
+            if (isWall) {
+              grad.addColorStop(0, 'rgba(239, 68, 68, 0.45)');
+              grad.addColorStop(0.3, 'rgba(245, 158, 11, 0.85)');
+              grad.addColorStop(0.5, 'rgba(254, 240, 138, 0.98)');
+              grad.addColorStop(0.7, 'rgba(245, 158, 11, 0.85)');
+              grad.addColorStop(1, 'rgba(239, 68, 68, 0.45)');
+            } else {
+              const alpha = Math.min(0.8, Math.max(0.18, 0.18 + intensity * 0.5));
+              grad.addColorStop(0, `rgba(220, 38, 38, ${alpha * 0.5})`);
+              grad.addColorStop(0.5, `rgba(249, 115, 22, ${alpha})`);
+              grad.addColorStop(1, `rgba(220, 38, 38, ${alpha * 0.5})`);
             }
+          } else {
+            // BID LIQUIDITY (Buy Orders Below Market) - Electric Cyan / Emerald / Teal
+            if (isWall) {
+              grad.addColorStop(0, 'rgba(16, 185, 129, 0.45)');
+              grad.addColorStop(0.3, 'rgba(6, 182, 212, 0.85)');
+              grad.addColorStop(0.5, 'rgba(250, 204, 21, 0.98)');
+              grad.addColorStop(0.7, 'rgba(6, 182, 212, 0.85)');
+              grad.addColorStop(1, 'rgba(16, 185, 129, 0.45)');
+            } else {
+              const alpha = Math.min(0.8, Math.max(0.18, 0.18 + intensity * 0.5));
+              grad.addColorStop(0, `rgba(13, 148, 136, ${alpha * 0.5})`);
+              grad.addColorStop(0.5, `rgba(6, 182, 212, ${alpha})`);
+              grad.addColorStop(1, `rgba(13, 148, 136, ${alpha * 0.5})`);
+            }
+          }
+
+          ctx.fillStyle = grad;
+          ctx.fillRect(bLeft, topY, bWidth, bandH);
+
+          // Subtle horizontal grid line
+          ctx.strokeStyle = isAsk ? 'rgba(249, 115, 22, 0.15)' : 'rgba(6, 182, 212, 0.15)';
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(bLeft, botY);
+          ctx.lineTo(bLeft + bWidth, botY);
+          ctx.stroke();
+
+          if (isWall) {
+            wallsToDraw.push({ y, isAsk, displayQty });
           }
         }
 
-        // Realistic baseline depth structure for levels beyond top-20
-        const distRatio = Math.abs(p - currentPrice) / priceSpan;
-        const isRound = Math.abs(p % (step * 5)) < (step * 0.1);
-        const wave = 0.22 + 0.14 * Math.sin(p * 11.3) + 0.12 * Math.cos(p * 4.7);
-        const syntheticQty = Math.max(0.1, (wave + (isRound ? 0.45 : 0) + Math.min(0.25, distRatio * 0.2))) * maxDepthQty;
-        const displayQty = liveQty > 0 ? liveQty : syntheticQty;
-        const isLive = liveQty > 0;
+        // ----------------------------------------------------
+        // LAYER 2: Foreground Wall Lines & Badges
+        // ----------------------------------------------------
+        ctx.globalCompositeOperation = 'source-over';
 
-        const intensity = Math.min(1, Math.max(0.08, displayQty / (maxDepthQty * 1.15)));
-        const isWall = isLive ? (intensity > 0.58 || liveQty > maxDepthQty * 0.5) : (isRound && intensity > 0.62);
+        const bRight = (bounding && typeof bounding.right === 'number') ? bounding.right : (bLeft + bWidth);
 
-        const grad = ctx.createLinearGradient(0, y - bandH / 2, 0, y + bandH / 2);
-
-        if (isAsk) {
-          // ASK LIQUIDITY (Sell Orders Above Market) - Warm Amber / Fiery Orange / Gold
-          if (isWall) {
-            // Blazing Amber/Gold Resistance Wall
-            grad.addColorStop(0, 'rgba(239, 68, 68, 0.40)');
-            grad.addColorStop(0.25, 'rgba(245, 158, 11, 0.85)');
-            grad.addColorStop(0.5, 'rgba(254, 240, 138, 1.0)'); // Incandescent Gold/White core
-            grad.addColorStop(0.75, 'rgba(245, 158, 11, 0.85)');
-            grad.addColorStop(1, 'rgba(239, 68, 68, 0.40)');
-          } else {
-            // High-Contrast Ask Thermal Glow
-            const alpha = 0.20 + intensity * 0.55;
-            grad.addColorStop(0, `rgba(220, 38, 38, ${alpha * 0.5})`);
-            grad.addColorStop(0.5, `rgba(249, 115, 22, ${alpha})`);
-            grad.addColorStop(1, `rgba(220, 38, 38, ${alpha * 0.5})`);
-          }
-        } else {
-          // BID LIQUIDITY (Buy Orders Below Market) - Electric Cyan / Emerald / Teal
-          if (isWall) {
-            // Blazing Cyan/Lime Support Wall
-            grad.addColorStop(0, 'rgba(16, 185, 129, 0.40)');
-            grad.addColorStop(0.25, 'rgba(6, 182, 212, 0.85)');
-            grad.addColorStop(0.5, 'rgba(250, 204, 21, 1.0)'); // Incandescent Yellow/Cyan core
-            grad.addColorStop(0.75, 'rgba(6, 182, 212, 0.85)');
-            grad.addColorStop(1, 'rgba(16, 185, 129, 0.40)');
-          } else {
-            // High-Contrast Bid Thermal Glow
-            const alpha = 0.20 + intensity * 0.55;
-            grad.addColorStop(0, `rgba(13, 148, 136, ${alpha * 0.5})`);
-            grad.addColorStop(0.5, `rgba(6, 182, 212, ${alpha})`);
-            grad.addColorStop(1, `rgba(13, 148, 136, ${alpha * 0.5})`);
-          }
-        }
-
-        ctx.fillStyle = grad;
-        ctx.fillRect(bounding.left, y - bandH / 2, bounding.width, bandH);
-
-        // Subtle horizontal grid track line between liquidity tiers
-        ctx.strokeStyle = isAsk ? 'rgba(249, 115, 22, 0.15)' : 'rgba(6, 182, 212, 0.15)';
-        ctx.lineWidth = 0.5;
-        ctx.beginPath();
-        ctx.moveTo(bounding.left, y + bandH / 2);
-        ctx.lineTo(bounding.right, y + bandH / 2);
-        ctx.stroke();
-
-        // Core line & volume badge for major walls
-        if (isWall) {
+        // Draw Wall Laser Lines & Badges
+        wallsToDraw.forEach(({ y, isAsk, displayQty }) => {
           const lineColor = isAsk ? 'rgba(251, 191, 36, 0.95)' : 'rgba(6, 182, 212, 0.95)';
           const badgeBg = isAsk ? 'rgba(180, 83, 9, 0.95)' : 'rgba(8, 145, 178, 0.95)';
           const badgeColor = isAsk ? '#fef08a' : '#cffafe';
           const labelPrefix = isAsk ? 'ASK' : 'BID';
 
-          // Glowing horizontal wall laser line
+          // Wall laser line
           ctx.strokeStyle = lineColor;
           ctx.lineWidth = 1.5;
           ctx.setLineDash([6, 3]);
           ctx.beginPath();
-          ctx.moveTo(bounding.left, y);
-          ctx.lineTo(bounding.right - 85, y);
+          ctx.moveTo(bLeft, y);
+          ctx.lineTo(bRight - 85, y);
           ctx.stroke();
           ctx.setLineDash([]);
 
-          // Right-side badge
+          // Badge on right edge
           ctx.fillStyle = badgeBg;
-          ctx.fillRect(bounding.right - 84, y - 9, 80, 18);
+          ctx.fillRect(bRight - 84, y - 9, 80, 18);
           ctx.strokeStyle = lineColor;
           ctx.lineWidth = 1;
-          ctx.strokeRect(bounding.right - 84, y - 9, 80, 18);
+          ctx.strokeRect(bRight - 84, y - 9, 80, 18);
 
           ctx.fillStyle = badgeColor;
           ctx.font = 'bold 10px "SF Mono", Consolas, monospace';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(`${labelPrefix} ${formatVolumeShort(displayQty)}`, bounding.right - 44, y);
+          ctx.fillText(`${labelPrefix} ${formatVolumeShort(displayQty)}`, bRight - 44, y);
+        });
+
+        // Current Price Marker line
+        const curY = yAxis.convertToPixel(currentPrice);
+        if (typeof curY === 'number' && isFinite(curY)) {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath();
+          ctx.moveTo(bLeft, curY);
+          ctx.lineTo(bRight, curY);
+          ctx.stroke();
+          ctx.setLineDash([]);
         }
+
+        ctx.restore();
+        return false;
+      } catch (err) {
+        console.error('Heatmap draw error:', err);
+        return false;
       }
-
-      // PART B: Current Price Marker
-      const curY = yAxis.convertToPixel(currentPrice);
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([3, 3]);
-      ctx.beginPath();
-      ctx.moveTo(bounding.left, curY);
-      ctx.lineTo(bounding.right, curY);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // PART C: Render Foreground Japanese Candlesticks on Top
-      const barSpace = params.barSpace || (chart && chart.getBarSpace && chart.getBarSpace()) || { bar: 16, gapBar: 4 };
-      const candleWidth = Math.max(5, barSpace.bar - barSpace.gapBar);
-      const halfC = candleWidth / 2;
-
-      for (let i = fromIndex; i < toIndex; i++) {
-        const kLine = dataList[i];
-        if (!kLine) continue;
-
-        const x = xAxis.convertToPixel(i);
-        if (x < bounding.left - candleWidth || x > bounding.right + candleWidth) continue;
-
-        const yHigh = yAxis.convertToPixel(kLine.high);
-        const yLow = yAxis.convertToPixel(kLine.low);
-        const yOpen = yAxis.convertToPixel(kLine.open);
-        const yClose = yAxis.convertToPixel(kLine.close);
-
-        const isUp = kLine.close >= kLine.open;
-        const bodyColor = isUp ? '#00e676' : '#ff1744';
-        const borderColor = isUp ? '#00c853' : '#d50000';
-
-        // High / Low Wick
-        ctx.strokeStyle = bodyColor;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(x, yHigh);
-        ctx.lineTo(x, yLow);
-        ctx.stroke();
-
-        // Solid Candlestick Body
-        const topY = Math.min(yOpen, yClose);
-        const bodyH = Math.max(2, Math.abs(yClose - yOpen));
-
-        ctx.fillStyle = bodyColor;
-        ctx.fillRect(x - halfC, topY, candleWidth, bodyH);
-
-        // Crisp border for maximum contrast against heatmap bands
-        ctx.strokeStyle = borderColor;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x - halfC, topY, candleWidth, bodyH);
-      }
-
-      ctx.restore();
-      return true;
     },
   });
 
