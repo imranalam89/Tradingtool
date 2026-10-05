@@ -225,6 +225,7 @@ export function registerDeltaIndicator() {
 
 /**
  * 3. Bookmap-Style Liquidity Heatmap Overlay Indicator
+ * Renders resting Ask and Bid limit orders as thermal heat bands BEHIND the candlesticks
  */
 export function registerHeatmapIndicator() {
   if (isHeatmapRegistered) return;
@@ -232,7 +233,8 @@ export function registerHeatmapIndicator() {
   registerIndicator({
     name: HEATMAP_INDICATOR_NAME,
     shortName: 'Heatmap',
-    calc: () => [],
+    zLevel: -1, // Draws behind the candlesticks
+    calc: (dataList) => dataList.map(() => ({})),
     figures: [],
     draw: (params) => {
       const { ctx, bounding, yAxis } = params;
@@ -242,37 +244,107 @@ export function registerHeatmapIndicator() {
       const asks = currentDepthData.asks || [];
       const maxQty = currentDepthData.maxQty || 1;
 
+      // Estimate band height from price level differences
+      let bandH = 14;
+      if (asks.length > 1) {
+        const dy = Math.abs(yAxis.convertToPixel(asks[0].price) - yAxis.convertToPixel(asks[1].price));
+        if (dy >= 4 && dy <= 36) bandH = dy;
+      } else if (bids.length > 1) {
+        const dy = Math.abs(yAxis.convertToPixel(bids[0].price) - yAxis.convertToPixel(bids[1].price));
+        if (dy >= 4 && dy <= 36) bandH = dy;
+      }
+
       ctx.save();
 
-      // Render resting asks liquidity cloud (red/orange heat)
+      // 1. Render Resting ASKS (Sell Limit Orders above market)
       asks.forEach((row) => {
         const y = yAxis.convertToPixel(row.price);
-        if (y < bounding.top || y > bounding.bottom) return;
+        if (y < bounding.top - 10 || y > bounding.bottom + 10) return;
 
         const intensity = Math.min(1, row.qty / maxQty);
-        const alpha = 0.08 + intensity * 0.45;
-        ctx.fillStyle = `rgba(242, 54, 69, ${alpha})`;
-        ctx.fillRect(bounding.left, y - 2, bounding.width, 4);
+        const alpha = 0.08 + intensity * 0.65;
+        const isWall = intensity > 0.60;
 
-        if (intensity > 0.6) {
-          ctx.fillStyle = `rgba(255, 180, 0, ${alpha * 0.8})`;
-          ctx.fillRect(bounding.left, y - 1, bounding.width, 2);
+        // Thermal vertical gradient for the ask band
+        const grad = ctx.createLinearGradient(0, y - bandH / 2, 0, y + bandH / 2);
+        if (isWall) {
+          // Blazing Amber/Gold Wall
+          grad.addColorStop(0, 'rgba(239, 68, 68, 0.15)');
+          grad.addColorStop(0.3, 'rgba(245, 158, 11, 0.65)');
+          grad.addColorStop(0.5, 'rgba(251, 191, 36, 0.90)'); // Hot gold core
+          grad.addColorStop(0.7, 'rgba(245, 158, 11, 0.65)');
+          grad.addColorStop(1, 'rgba(239, 68, 68, 0.15)');
+        } else {
+          // Normal Ask Heat (Crimson/Rose)
+          grad.addColorStop(0, `rgba(225, 29, 72, ${alpha * 0.2})`);
+          grad.addColorStop(0.5, `rgba(244, 63, 94, ${alpha})`);
+          grad.addColorStop(1, `rgba(225, 29, 72, ${alpha * 0.2})`);
+        }
+
+        ctx.fillStyle = grad;
+        ctx.fillRect(bounding.left, y - bandH / 2, bounding.width, bandH);
+
+        // Core line & volume badge for large ask walls
+        if (isWall) {
+          ctx.strokeStyle = 'rgba(251, 191, 36, 0.8)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(bounding.left, y);
+          ctx.lineTo(bounding.right - 65, y);
+          ctx.stroke();
+
+          // Right-side badge
+          ctx.fillStyle = 'rgba(245, 158, 11, 0.9)';
+          ctx.font = 'bold 9px "SF Mono", Consolas, monospace';
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`ASK ${row.qty.toFixed(row.qty < 1 ? 3 : 1)}`, bounding.right - 5, y);
         }
       });
 
-      // Render resting bids liquidity cloud (green/cyan heat)
+      // 2. Render Resting BIDS (Buy Limit Orders below market)
       bids.forEach((row) => {
         const y = yAxis.convertToPixel(row.price);
-        if (y < bounding.top || y > bounding.bottom) return;
+        if (y < bounding.top - 10 || y > bounding.bottom + 10) return;
 
         const intensity = Math.min(1, row.qty / maxQty);
-        const alpha = 0.08 + intensity * 0.45;
-        ctx.fillStyle = `rgba(34, 171, 148, ${alpha})`;
-        ctx.fillRect(bounding.left, y - 2, bounding.width, 4);
+        const alpha = 0.08 + intensity * 0.65;
+        const isWall = intensity > 0.60;
 
-        if (intensity > 0.6) {
-          ctx.fillStyle = `rgba(0, 220, 255, ${alpha * 0.8})`;
-          ctx.fillRect(bounding.left, y - 1, bounding.width, 2);
+        // Thermal vertical gradient for the bid band
+        const grad = ctx.createLinearGradient(0, y - bandH / 2, 0, y + bandH / 2);
+        if (isWall) {
+          // Glowing Cyan/Yellow Support Wall
+          grad.addColorStop(0, 'rgba(16, 185, 129, 0.15)');
+          grad.addColorStop(0.3, 'rgba(6, 182, 212, 0.65)');
+          grad.addColorStop(0.5, 'rgba(250, 204, 21, 0.90)'); // Hot yellow core
+          grad.addColorStop(0.7, 'rgba(6, 182, 212, 0.65)');
+          grad.addColorStop(1, 'rgba(16, 185, 129, 0.15)');
+        } else {
+          // Normal Bid Heat (Emerald/Teal)
+          grad.addColorStop(0, `rgba(16, 185, 129, ${alpha * 0.2})`);
+          grad.addColorStop(0.5, `rgba(20, 184, 166, ${alpha})`);
+          grad.addColorStop(1, `rgba(16, 185, 129, ${alpha * 0.2})`);
+        }
+
+        ctx.fillStyle = grad;
+        ctx.fillRect(bounding.left, y - bandH / 2, bounding.width, bandH);
+
+        // Core line & volume badge for large bid walls
+        if (isWall) {
+          ctx.strokeStyle = 'rgba(6, 182, 212, 0.8)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(bounding.left, y);
+          ctx.lineTo(bounding.right - 65, y);
+          ctx.stroke();
+
+          // Right-side badge
+          ctx.fillStyle = 'rgba(6, 182, 212, 0.9)';
+          ctx.font = 'bold 9px "SF Mono", Consolas, monospace';
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`BID ${row.qty.toFixed(row.qty < 1 ? 3 : 1)}`, bounding.right - 5, y);
         }
       });
 

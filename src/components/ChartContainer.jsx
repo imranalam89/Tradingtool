@@ -28,10 +28,15 @@ export function ChartContainer({
   const subPaneIdRef = useRef(null);
   const currentSubIndicatorRef = useRef(subIndicator);
 
-  // Sync depthData with heatmap drawer
+  // Sync depthData with heatmap drawer and trigger real-time repaint
   useEffect(() => {
     setHeatmapDepthData(depthData);
-  }, [depthData]);
+    if (chartMode === 'HEATMAP' && chartInstance.current) {
+      try {
+        chartInstance.current.overrideIndicator({ name: HEATMAP_INDICATOR_NAME }, 'candle_pane');
+      } catch (e) {}
+    }
+  }, [depthData, chartMode]);
 
   useEffect(() => {
     if (!containerRef.current) return;
