@@ -13,7 +13,10 @@ import {
 } from 'lucide-react';
 
 const POPULAR_SYMBOLS = [
-  { symbol: 'XAUUSD', name: 'Gold / USD (Spot)', badge: 'Gold Spot' },
+  { symbol: 'XAUUSD', name: 'Gold / USD (Binance 24/7)', badge: 'Gold Spot' },
+  { symbol: 'GC', name: 'CME Gold Futures', badge: 'Tradovate CME' },
+  { symbol: 'NQ', name: 'E-mini Nasdaq 100 Futures', badge: 'Tradovate CME' },
+  { symbol: 'ES', name: 'E-mini S&P 500 Futures', badge: 'Tradovate CME' },
   { symbol: 'PAXGUSDT', name: 'Paxos Gold / Tether', badge: 'Proxy 1:1' },
   { symbol: 'BTCUSDT', name: 'Bitcoin / Tether', badge: 'Crypto' },
   { symbol: 'ETHUSDT', name: 'Ethereum / Tether', badge: 'Crypto' },
@@ -49,6 +52,8 @@ export function Navbar({
   onToggleSubIndicator,
   theme = 'dark',
   onToggleTheme,
+  isTradovateConnected = false,
+  onOpenTradovate,
 }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
@@ -314,6 +319,23 @@ export function Navbar({
             <span className="text-[#f23645]">OFFLINE</span>
           )}
         </div>
+
+        {/* Tradovate CME Connector Button */}
+        <button
+          onClick={onOpenTradovate}
+          className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded border transition-all ${
+            isTradovateConnected
+              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm'
+              : 'bg-[#1e222d] text-[#787b86] border-[#2a2e39] hover:text-white hover:border-[#363a45]'
+          }`}
+          title="Connect your Tradovate Account for Real CME Gold & Futures L2 Depth"
+        >
+          <span className={`h-2 w-2 rounded-full ${isTradovateConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+          <span className="font-semibold text-white">Tradovate</span>
+          <span className="text-[10px] text-[#787b86] hidden sm:inline">
+            {isTradovateConnected ? 'CME LIVE' : 'CONNECT'}
+          </span>
+        </button>
 
         {/* Theme Toggle */}
         <button

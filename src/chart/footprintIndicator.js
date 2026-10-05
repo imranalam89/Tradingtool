@@ -330,76 +330,87 @@ export function registerHeatmapIndicator() {
         const grad = ctx.createLinearGradient(0, y - bandH / 2, 0, y + bandH / 2);
 
         if (isAsk) {
-          // ASK LIQUIDITY (Sell Orders Above Market)
+          // ASK LIQUIDITY (Sell Orders Above Market) - Warm Amber / Fiery Orange / Gold
           if (isWall) {
             // Blazing Amber/Gold Resistance Wall
-            grad.addColorStop(0, 'rgba(239, 68, 68, 0.25)');
-            grad.addColorStop(0.3, 'rgba(245, 158, 11, 0.75)');
-            grad.addColorStop(0.5, 'rgba(251, 191, 36, 0.95)'); // Glowing Gold
-            grad.addColorStop(0.7, 'rgba(245, 158, 11, 0.75)');
-            grad.addColorStop(1, 'rgba(239, 68, 68, 0.25)');
+            grad.addColorStop(0, 'rgba(239, 68, 68, 0.40)');
+            grad.addColorStop(0.25, 'rgba(245, 158, 11, 0.85)');
+            grad.addColorStop(0.5, 'rgba(254, 240, 138, 1.0)'); // Incandescent Gold/White core
+            grad.addColorStop(0.75, 'rgba(245, 158, 11, 0.85)');
+            grad.addColorStop(1, 'rgba(239, 68, 68, 0.40)');
           } else {
-            // Crimson / Rose Ask Heat
-            const alpha = 0.08 + intensity * 0.48;
-            grad.addColorStop(0, `rgba(225, 29, 72, ${alpha * 0.25})`);
-            grad.addColorStop(0.5, `rgba(244, 63, 94, ${alpha})`);
-            grad.addColorStop(1, `rgba(225, 29, 72, ${alpha * 0.25})`);
+            // High-Contrast Ask Thermal Glow
+            const alpha = 0.20 + intensity * 0.55;
+            grad.addColorStop(0, `rgba(220, 38, 38, ${alpha * 0.5})`);
+            grad.addColorStop(0.5, `rgba(249, 115, 22, ${alpha})`);
+            grad.addColorStop(1, `rgba(220, 38, 38, ${alpha * 0.5})`);
           }
         } else {
-          // BID LIQUIDITY (Buy Orders Below Market)
+          // BID LIQUIDITY (Buy Orders Below Market) - Electric Cyan / Emerald / Teal
           if (isWall) {
-            // Glowing Cyan/Yellow Support Wall
-            grad.addColorStop(0, 'rgba(16, 185, 129, 0.25)');
-            grad.addColorStop(0.3, 'rgba(6, 182, 212, 0.75)');
-            grad.addColorStop(0.5, 'rgba(250, 204, 21, 0.95)'); // Glowing Yellow/Cyan
-            grad.addColorStop(0.7, 'rgba(6, 182, 212, 0.75)');
-            grad.addColorStop(1, 'rgba(16, 185, 129, 0.25)');
+            // Blazing Cyan/Lime Support Wall
+            grad.addColorStop(0, 'rgba(16, 185, 129, 0.40)');
+            grad.addColorStop(0.25, 'rgba(6, 182, 212, 0.85)');
+            grad.addColorStop(0.5, 'rgba(250, 204, 21, 1.0)'); // Incandescent Yellow/Cyan core
+            grad.addColorStop(0.75, 'rgba(6, 182, 212, 0.85)');
+            grad.addColorStop(1, 'rgba(16, 185, 129, 0.40)');
           } else {
-            // Emerald / Teal Bid Heat
-            const alpha = 0.08 + intensity * 0.48;
-            grad.addColorStop(0, `rgba(16, 185, 129, ${alpha * 0.25})`);
-            grad.addColorStop(0.5, `rgba(20, 184, 166, ${alpha})`);
-            grad.addColorStop(1, `rgba(16, 185, 129, ${alpha * 0.25})`);
+            // High-Contrast Bid Thermal Glow
+            const alpha = 0.20 + intensity * 0.55;
+            grad.addColorStop(0, `rgba(13, 148, 136, ${alpha * 0.5})`);
+            grad.addColorStop(0.5, `rgba(6, 182, 212, ${alpha})`);
+            grad.addColorStop(1, `rgba(13, 148, 136, ${alpha * 0.5})`);
           }
         }
 
         ctx.fillStyle = grad;
         ctx.fillRect(bounding.left, y - bandH / 2, bounding.width, bandH);
 
+        // Subtle horizontal grid track line between liquidity tiers
+        ctx.strokeStyle = isAsk ? 'rgba(249, 115, 22, 0.15)' : 'rgba(6, 182, 212, 0.15)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(bounding.left, y + bandH / 2);
+        ctx.lineTo(bounding.right, y + bandH / 2);
+        ctx.stroke();
+
         // Core line & volume badge for major walls
         if (isWall) {
-          const lineColor = isAsk ? 'rgba(251, 191, 36, 0.85)' : 'rgba(6, 182, 212, 0.85)';
-          const badgeColor = isAsk ? '#fbbf24' : '#22d3ee';
+          const lineColor = isAsk ? 'rgba(251, 191, 36, 0.95)' : 'rgba(6, 182, 212, 0.95)';
+          const badgeBg = isAsk ? 'rgba(180, 83, 9, 0.95)' : 'rgba(8, 145, 178, 0.95)';
+          const badgeColor = isAsk ? '#fef08a' : '#cffafe';
           const labelPrefix = isAsk ? 'ASK' : 'BID';
 
+          // Glowing horizontal wall laser line
           ctx.strokeStyle = lineColor;
-          ctx.lineWidth = 1;
-          ctx.setLineDash([4, 4]);
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([6, 3]);
           ctx.beginPath();
           ctx.moveTo(bounding.left, y);
-          ctx.lineTo(bounding.right - 80, y);
+          ctx.lineTo(bounding.right - 85, y);
           ctx.stroke();
           ctx.setLineDash([]);
 
           // Right-side badge
-          ctx.fillStyle = 'rgba(19, 23, 34, 0.90)';
-          ctx.fillRect(bounding.right - 78, y - 8, 74, 16);
+          ctx.fillStyle = badgeBg;
+          ctx.fillRect(bounding.right - 84, y - 9, 80, 18);
           ctx.strokeStyle = lineColor;
-          ctx.strokeRect(bounding.right - 78, y - 8, 74, 16);
+          ctx.lineWidth = 1;
+          ctx.strokeRect(bounding.right - 84, y - 9, 80, 18);
 
           ctx.fillStyle = badgeColor;
-          ctx.font = 'bold 9px "SF Mono", Consolas, monospace';
+          ctx.font = 'bold 10px "SF Mono", Consolas, monospace';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(`${labelPrefix} ${formatVolumeShort(displayQty)}`, bounding.right - 41, y);
+          ctx.fillText(`${labelPrefix} ${formatVolumeShort(displayQty)}`, bounding.right - 44, y);
         }
       }
 
       // PART B: Current Price Marker
       const curY = yAxis.convertToPixel(currentPrice);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([2, 3]);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
       ctx.beginPath();
       ctx.moveTo(bounding.left, curY);
       ctx.lineTo(bounding.right, curY);
@@ -408,7 +419,7 @@ export function registerHeatmapIndicator() {
 
       // PART C: Render Foreground Japanese Candlesticks on Top
       const barSpace = params.barSpace || (chart && chart.getBarSpace && chart.getBarSpace()) || { bar: 16, gapBar: 4 };
-      const candleWidth = Math.max(4, barSpace.bar - barSpace.gapBar);
+      const candleWidth = Math.max(5, barSpace.bar - barSpace.gapBar);
       const halfC = candleWidth / 2;
 
       for (let i = fromIndex; i < toIndex; i++) {
@@ -424,8 +435,8 @@ export function registerHeatmapIndicator() {
         const yClose = yAxis.convertToPixel(kLine.close);
 
         const isUp = kLine.close >= kLine.open;
-        const bodyColor = isUp ? '#22ab94' : '#f23645';
-        const borderColor = isUp ? '#2ee6c8' : '#ff4d5a';
+        const bodyColor = isUp ? '#00e676' : '#ff1744';
+        const borderColor = isUp ? '#00c853' : '#d50000';
 
         // High / Low Wick
         ctx.strokeStyle = bodyColor;
@@ -444,12 +455,12 @@ export function registerHeatmapIndicator() {
 
         // Crisp border for maximum contrast against heatmap bands
         ctx.strokeStyle = borderColor;
-        ctx.lineWidth = 0.8;
+        ctx.lineWidth = 1;
         ctx.strokeRect(x - halfC, topY, candleWidth, bodyH);
       }
 
       ctx.restore();
-      return false;
+      return true;
     },
   });
 

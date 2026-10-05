@@ -3,12 +3,14 @@ import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { ChartContainer } from './components/ChartContainer';
 import { SettingsModal } from './components/SettingsModal';
+import { TradovateModal } from './components/TradovateModal';
 import { OrderFlowHUD } from './components/OrderFlowHUD';
 import { DOMLadder } from './components/DOMLadder';
 import { InstitutionalFlowPanel } from './components/InstitutionalFlowPanel';
 import { BinanceWebSocketService } from './services/binanceWs';
 import { DOMWebSocketService } from './services/domWs';
 import { LiquidationWebSocketService } from './services/liquidationWs';
+import { TradovateService } from './services/tradovateService';
 import { fetchOptionsGammaData } from './services/optionsService';
 import { TickAggregator } from './services/tickAggregator';
 import { fetchHistoricalKlines, fetchRecentAggTrades } from './services/binanceRest';
@@ -20,6 +22,8 @@ export default function App() {
   const [chartMode, setChartMode] = useState('FOOTPRINT'); // 'FOOTPRINT' or 'CANDLE'
   const [activeTool, setActiveTool] = useState('crosshair');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isTradovateOpen, setIsTradovateOpen] = useState(false);
+  const [tradovateStatus, setTradovateStatus] = useState({ status: 'DISCONNECTED' });
 
   // Panels toggles (ATAS / Bookmap style)
   const [isDOMOpen, setIsDOMOpen] = useState(true);
@@ -53,6 +57,7 @@ export default function App() {
   const wsServiceRef = useRef(null);
   const domWsServiceRef = useRef(null);
   const liqWsServiceRef = useRef(null);
+  const tradovateServiceRef = useRef(null);
   const aggregatorRef = useRef(null);
 
   const lastStateUpdateRef = useRef(0);
@@ -207,8 +212,35 @@ export default function App() {
     return () => {
       if (wsServiceRef.current) wsServiceRef.current.disconnect();
       if (domWsServiceRef.current) domWsServiceRef.current.disconnect();
+      if (tradovateServiceRef.current) tradovateServiceRef.current.disconnect();
     };
   }, [symbol, timeframe, loadDataAndConnect]);
+
+  const handleConnectTradovate = async (creds) => {
+    if (!tradovateServiceRef.current) {
+      tradovateServiceRef.current = new TradovateService({
+        onDepthUpdate: (depth) => {
+          setDepthData(depth);
+        },
+        onQuoteUpdate: (quote) => {
+          if (quote.lastPrice) {
+            setLatestPrice(quote.lastPrice);
+          }
+        },
+        onStatusChange: (status) => {
+          setTradovateStatus(status);
+        },
+      });
+    }
+
+    await tradovateServiceRef.current.authenticate(creds);
+  };
+
+  const handleDisconnectTradovate = () => {
+    if (tradovateServiceRef.current) {
+      tradovateServiceRef.current.disconnect();
+    }
+  };
 
   const handleChartReady = (chart) => {
     chartRef.current = chart;
@@ -265,6 +297,8 @@ export default function App() {
         onToggleSubIndicator={() => setSubIndicator(prev => prev === 'DELTA' ? 'VOL' : 'DELTA')}
         theme={theme}
         onToggleTheme={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+        isTradovateConnected={tradovateStatus.status === 'CONNECTED'}
+        onOpenTradovate={() => setIsTradovateOpen(true)}
       />
 
       {/* Main Workspace */}
@@ -321,6 +355,15 @@ export default function App() {
         settings={settings}
         onUpdateSettings={setSettings}
         symbol={symbol}
+      />
+
+      {/* Tradovate CME Data Feed Modal */}
+      <TradovateModal
+        isOpen={isTradovateOpen}
+        onClose={() => setIsTradovateOpen(false)}
+        tradovateStatus={tradovateStatus}
+        onConnect={handleConnectTradovate}
+        onDisconnect={handleDisconnectTradovate}
       />
     </div>
   );
